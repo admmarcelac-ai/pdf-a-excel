@@ -17,7 +17,7 @@ def leer_pdf(archivo):
     reader = PdfReader(archivo)
     pagina = reader.pages[0]
     texto = pagina.extract_text()
-    return texto.strip() if texto else ""
+    return texto if texto else ""
 
 # =============================
 # BUSCAR CON REGEX
@@ -27,17 +27,14 @@ def buscar(patron, texto):
     return m.group(1).strip() if m else ""
 
 # =============================
-# PROCESAR UN PDF
+# PROCESAR PDF
 # =============================
 def procesar_pdf(pdf):
     texto = leer_pdf(pdf)
 
-    # 👉 SOLO PARA VER QUÉ LEE (después se puede sacar)
-    st.text_area("Texto detectado en el PDF", texto, height=250)
+    # DEBUG (ver texto real)
+    st.text_area("Texto detectado en el PDF", texto, height=300)
 
-    # -------------------------
-    # DATOS DEL ENCABEZADO
-    # -------------------------
     datos_base = {
         "Receptor": "SALUD METROPOLITANA SA",
         "CUIT Receptor": "30715602012",
@@ -51,12 +48,10 @@ def procesar_pdf(pdf):
 
     filas = []
 
-    # -------------------------
-    # DETALLE DE PRODUCTOS
-    # -------------------------
     productos = re.findall(
-        r"\n([A-Z0-9 /().+-]{10,100})\s+(\d+)\s+unidades\s+([\d.,]+)\s+0,00\s+([\d.,]+)",
-        texto
+        r"([A-Z0-9 /().+-]{10,120})\n.*?X\s*(\d+),\d+\s+unidades\s+([\d.,]+)\s+0,00\s+([\d.,]+)\s+21%",
+        texto,
+        re.DOTALL
     )
 
     for p in productos:
@@ -74,7 +69,7 @@ def procesar_pdf(pdf):
     return filas
 
 # =============================
-# SUBIDA DE ARCHIVOS
+# SUBIDA DE PDFS
 # =============================
 archivos = st.file_uploader(
     "Subí uno o varios PDFs",
@@ -86,13 +81,13 @@ archivos = st.file_uploader(
 # PROCESAR Y EXPORTAR
 # =============================
 if archivos:
-    todas_las_filas = []
+    todo = []
 
     for pdf in archivos:
-        todas_las_filas.extend(procesar_pdf(pdf))
+        todo.extend(procesar_pdf(pdf))
 
-    if todas_las_filas:
-        df = pd.DataFrame(todas_las_filas)
+    if todo:
+        df = pd.DataFrame(todo)
         st.subheader("📊 Datos extraídos")
         st.dataframe(df)
 
@@ -107,3 +102,4 @@ if archivos:
         )
     else:
         st.warning("⚠️ No se detectaron productos en los PDFs.")
+``
