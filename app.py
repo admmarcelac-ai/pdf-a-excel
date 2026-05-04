@@ -36,29 +36,30 @@ def procesar_pdf(pdf):
         "CUIT Emisor": "30714997234",
         "Fecha": buscar(r"(\d{2}/\d{2}/\d{4})", texto),
         "Tipo": "FACTURA A",
-        "Punto de Venta": buscar(r"Punto de Venta:\s*(\d+)", texto),
-        "Número": buscar(r"Comp. Nro:\s*\d+\s*(\d+)", texto),
-    }
+        "Punto de Venta": buscar(r"Punto de Venta\s*(\d+)", texto),
+        "Número": buscar(r"Comp\.?\s*Nro\.?\s*(\d+)", texto),
+        ``
+
 
     filas = []
-
-    productos = re.findall(
-    r"(.*?)\s+X\s+(\d+[.,]\d+|\d+).*?([\d,]+).*?(0,00).*?([\d,]+)",
-    texto,
-    re.DOTALL
+    
+productos = re.findall(
+    r"\n([A-Z0-9 /().+-]{10,100})\s+(\d+)\s+unidades\s+([\d.,]+)\s+0,00\s+([\d.,]+)",
+    texto
 )
 
+
     for p in productos:
-        filas.append({
-            **datos,
-            "Producto": p[0].strip(),
-            "Cantidad": float(p[1].replace(",", ".")),
-            "Unidad": "unidades",
-            "Precio Unitario": float(p[2].replace(",", ".")),
-            "Subtotal": float(p[3].replace(",", ".")),
-            "IVA %": 21,
-            "Total c/ IVA": float(p[4].replace(",", ".")),
-        })
+    filas.append({
+        **datos,
+        "Producto": p[0].strip(),
+        "Cantidad": int(p[1]),
+        "Unidad": "unidades",
+        "Precio Unitario": float(p[2].replace(",", ".")),
+        "Subtotal": float(p[3].replace(",", ".")),
+        "IVA %": 21,
+        "Total c/ IVA": float(p[3].replace(",", ".")),
+    })
 
     return filas
 
