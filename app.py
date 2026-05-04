@@ -1,25 +1,23 @@
 import streamlit as st
 import pandas as pd
-import re
 from PyPDF2 import PdfReader
 from io import BytesIO
+import re
 
 st.set_page_config(page_title="PDFs de Facturas a Excel", layout="wide")
 st.title("📄 PDFs de Facturas → Excel único")
 
 def leer_pdf(archivo):
     reader = PdfReader(archivo)
-    pagina = reader.pages[0]
-    texto = pagina.extract_text()
+    texto = reader.pages[0].extract_text()
     return texto if texto else ""
 
 def buscar(patron, texto):
-    m = re.search(patron, texto, re.IGNORECASE | re.DOTALL)
+    m = re.search(patron, texto, re.IGNORECASE)
     return m.group(1).strip() if m else ""
 
 def procesar_pdf(pdf):
     texto = leer_pdf(pdf)
-
     st.text_area("Texto detectado en el PDF", texto, height=300)
 
     datos_base = {
@@ -27,38 +25,39 @@ def procesar_pdf(pdf):
         "CUIT Receptor": "30715602012",
         "Emisor": "PAPUS SRL",
         "CUIT Emisor": "30714997234",
-        "Fecha": buscar(r"(\\d{2}/\\d{2}/\\d{4})", texto),
+        "Fecha": buscar(r"(\d{2}/\d{2}/\d{4})", texto),
         "Tipo": "FACTURA A",
-        "Punto de Venta": buscar(r"Punto de Venta\\s*(\\d+)", texto),
-        "Número": buscar(r"Comp\\.?\\s*Nro\\.?\\s*(\\d+)", texto),
+        "Punto de Venta": "0020",
+        "Número": buscar(r"(\d{8})", texto),
     }
 
     filas = []
 
-    productos = re.findall(
-        r"([A-Z0-9 /().+-]{10,120})\\n.*?X\\s*(\\d+),\\d+\\s+unidades\\s+([\\d.,]+)\\s+0,00\\s+([\\d.,]+)\\s+21%",
-        texto,
-        re.DOTALL
-    )
+    lineas = [l.strip() for l in texto.split("\n") if l.strip()]
 
-    for prod in productos:
-        filas.append({
-            "Receptor": datos_base["Receptor"],
-            "CUIT Receptor": datos_base["CUIT Receptor"],
-            "Emisor": datos_base["Emisor"],
-            "CUIT Emisor": datos_base["CUIT Emisor"],
-            "Fecha": datos_base["Fecha"],
-            "Tipo": datos_base["Tipo"],
-            "Punto de Venta": datos_base["Punto de Venta"],
-            "Número": datos_base["Número"],
-            "Producto": prod[0].strip(),
-            "Cantidad": int(prod[1]),
-            "Unidad": "unidades",
-            "Precio Unitario": float(prod[2].replace(",", ".")),
-            "Subtotal": float(prod[3].replace(",", ".")),
-            "IVA %": 21,
-            "Total c/ IVA": float(prod[3].replace(",", ".")),
-        })
+    for i in range(1, len(lineas)):
+        linea = lineas[i]
+
+        if "unidades" in linea and "%" in linea:
+            producto = lineas[i - 1]
+
+            nums = re.findall(r"([\d.,]+)", linea)
+
+            if len(nums) >= 4:
+                cantidad = int(float(nums[0].replace(",", ".")))
+                precio = float(nums[1].replace(",", "."))
+                subtotal = float(nums[3].replace(",", "."))
+
+                filas.append({
+                    **datos_base,
+                    "Producto": producto,
+                    "Cantidad": cantidad,
+                    "Unidad": "unidades",
+                    "Precio Unitario": precio,
+                    "Subtotal": subtotal,
+                    "IVA %": 21,
+                    "Total c/ IVA": subtotal,
+                })
 
     return filas
 
@@ -70,6 +69,7 @@ archivos = st.file_uploader(
 
 if archivos:
     todas = []
+
     for pdf in archivos:
         todas.extend(procesar_pdf(pdf))
 
@@ -87,4 +87,4 @@ if archivos:
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     else:
-        st.warning("No se detectaron productos.")
+        st.warning("⚠️ No se detectaron productos.")
