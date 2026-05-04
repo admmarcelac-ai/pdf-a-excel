@@ -4,32 +4,41 @@ import re
 from PyPDF2 import PdfReader
 from io import BytesIO
 
+# =============================
+# CONFIG STREAMLIT
+# =============================
 st.set_page_config(page_title="PDF Facturas a Excel", layout="wide")
 st.title("📄 PDFs de Facturas → Excel único")
 
+# =============================
+# LEER PDF (SOLO HOJA 1)
+# =============================
 def leer_pdf(archivo):
     reader = PdfReader(archivo)
-    texto = ""
-
-    # ✅ SOLO HOJA 1 (índice 0)
     pagina = reader.pages[0]
-    page_text = pagina.extract_text()
+    texto = pagina.extract_text()
+    return texto.strip() if texto else ""
 
-    if page_text:
-        texto = page_text
-
-    return texto.strip()
-
+# =============================
+# BUSCAR CON REGEX
+# =============================
 def buscar(patron, texto):
-    import re
     m = re.search(patron, texto, re.IGNORECASE | re.DOTALL)
     return m.group(1).strip() if m else ""
 
+# =============================
+# PROCESAR UN PDF
+# =============================
 def procesar_pdf(pdf):
     texto = leer_pdf(pdf)
-    st.text_area("Texto detectado en el PDF", texto, height=300)
 
-    datos = {
+    # 👉 SOLO PARA VER QUÉ LEE (después se puede sacar)
+    st.text_area("Texto detectado en el PDF", texto, height=250)
+
+    # -------------------------
+    # DATOS DEL ENCABEZADO
+    # -------------------------
+    datos_base = {
         "Receptor": "SALUD METROPOLITANA SA",
         "CUIT Receptor": "30715602012",
         "Emisor": "PAPUS SRL",
@@ -38,51 +47,63 @@ def procesar_pdf(pdf):
         "Tipo": "FACTURA A",
         "Punto de Venta": buscar(r"Punto de Venta\s*(\d+)", texto),
         "Número": buscar(r"Comp\.?\s*Nro\.?\s*(\d+)", texto),
-        ``
-
+    }
 
     filas = []
-    
-productos = re.findall(
-    r"\n([A-Z0-9 /().+-]{10,100})\s+(\d+)\s+unidades\s+([\d.,]+)\s+0,00\s+([\d.,]+)",
-    texto
-)
 
+    # -------------------------
+    # DETALLE DE PRODUCTOS
+    # -------------------------
+    productos = re.findall(
+        r"\n([A-Z0-9 /().+-]{10,100})\s+(\d+)\s+unidades\s+([\d.,]+)\s+0,00\s+([\d.,]+)",
+        texto
+    )
 
     for p in productos:
-    filas.append({
-        **datos,
-        "Producto": p[0].strip(),
-        "Cantidad": int(p[1]),
-        "Unidad": "unidades",
-        "Precio Unitario": float(p[2].replace(",", ".")),
-        "Subtotal": float(p[3].replace(",", ".")),
-        "IVA %": 21,
-        "Total c/ IVA": float(p[3].replace(",", ".")),
-    })
+        filas.append({
+            **datos_base,
+            "Producto": p[0].strip(),
+            "Cantidad": int(p[1]),
+            "Unidad": "unidades",
+            "Precio Unitario": float(p[2].replace(",", ".")),
+            "Subtotal": float(p[3].replace(",", ".")),
+            "IVA %": 21,
+            "Total c/ IVA": float(p[3].replace(",", ".")),
+        })
 
     return filas
 
+# =============================
+# SUBIDA DE ARCHIVOS
+# =============================
 archivos = st.file_uploader(
     "Subí uno o varios PDFs",
     type="pdf",
     accept_multiple_files=True
 )
 
+# =============================
+# PROCESAR Y EXPORTAR
+# =============================
 if archivos:
-    todo = []
+    todas_las_filas = []
+
     for pdf in archivos:
-        todo.extend(procesar_pdf(pdf))
+        todas_las_filas.extend(procesar_pdf(pdf))
 
-    df = pd.DataFrame(todo)
-    st.dataframe(df)
+    if todas_las_filas:
+        df = pd.DataFrame(todas_las_filas)
+        st.subheader("📊 Datos extraídos")
+        st.dataframe(df)
 
-    buffer = BytesIO()
-    df.to_excel(buffer, index=False, engine="openpyxl")
+        buffer = BytesIO()
+        df.to_excel(buffer, index=False, engine="openpyxl")
 
-    st.download_button(
-        "⬇️ Descargar Excel",
-        buffer.getvalue(),
-        "facturas.xlsx",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+        st.download_button(
+            "⬇️ Descargar Excel",
+            buffer.getvalue(),
+            "facturas.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    else:
+        st.warning("⚠️ No se detectaron productos en los PDFs.")
