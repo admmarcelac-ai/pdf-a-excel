@@ -10,16 +10,24 @@ st.title("📄 PDFs de Facturas → Excel único")
 def leer_pdf(archivo):
     reader = PdfReader(archivo)
     texto = ""
-    for pagina in reader.pages:
-        texto += pagina.extract_text() + "\n"
-    return texto
+
+    # ✅ SOLO HOJA 1 (índice 0)
+    pagina = reader.pages[0]
+    page_text = pagina.extract_text()
+
+    if page_text:
+        texto = page_text
+
+    return texto.strip()
 
 def buscar(patron, texto):
-    m = re.search(patron, texto, re.DOTALL)
+    import re
+    m = re.search(patron, texto, re.IGNORECASE | re.DOTALL)
     return m.group(1).strip() if m else ""
 
 def procesar_pdf(pdf):
     texto = leer_pdf(pdf)
+    st.text_area("Texto detectado en el PDF", texto, height=300)
 
     datos = {
         "Receptor": "SALUD METROPOLITANA SA",
@@ -35,9 +43,10 @@ def procesar_pdf(pdf):
     filas = []
 
     productos = re.findall(
-        r"(.*?)\s+X\s+1\s+([\d,]+)\s+unidades\s+([\d,]+)\s+0,00\s+([\d,]+)\s+21%\s+([\d,]+)",
-        texto
-    )
+    r"(.*?)\s+X\s+(\d+[.,]\d+|\d+).*?([\d,]+).*?(0,00).*?([\d,]+)",
+    texto,
+    re.DOTALL
+)
 
     for p in productos:
         filas.append({
