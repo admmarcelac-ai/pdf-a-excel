@@ -24,43 +24,58 @@ def procesar_pdf(pdf):
         "CUIT Receptor": "30715602012",
         "Emisor": "PAPUS SRL",
         "CUIT Emisor": "30714997234",
-        "Fecha": buscar(r"(\\d{2}/\\d{2}/\\d{4})", texto),
+        "Fecha": buscar(r"(\d{2}/\d{2}/\d{4})", texto),
         "Tipo": "FACTURA A",
         "Punto de Venta": "0020",
-        "Número": buscar(r"(\\d{8})", texto),
+        "Número": buscar(r"(\d{8})", texto),
     }
 
     filas = []
     descripcion = []
 
-    for linea in texto.split("\n"):
-        linea = linea.strip()
-        if not linea:
+    lineas = [l.strip() for l in texto.split("\n") if l.strip()]
+
+    for linea in lineas:
+        # Acumulamos descripción
+        if "unidades" not in linea or "%" not in linea:
+            descripcion.append(linea)
             continue
 
-        if "unidades" in linea and "%" in linea:
-            cant = re.search(r"X\\s*(\\d+),", linea)
-            cantidad = int(cant.group(1)) if cant else 0
+        # ===== LÍNEA DE DETALLE =====
 
-            nums = re.findall(r"([\\d.,]+)", linea)
-            precio = float(nums[1].replace(",", ".")) if len(nums) > 1 else 0
-            subtotal = float(nums[-3].replace(",", "."))
-            total = float(nums[-1].replace(",", "."))
+        # Cantidad (X 48,00)
+        m_cant = re.search(r"X\s*(\d+),", linea)
+        cantidad = int(m_cant.group(1)) if m_cant else 0
 
-            filas.append({
-                **datos_base,
-                "Producto": " ".join(descripcion),
-                "Cantidad": cantidad,
-                "Unidad": "unidades",
-                "Precio Unitario": precio,
-                "Subtotal": subtotal,
-                "IVA %": 21,
-                "Total c/ IVA": total,
-            })
+        # Todos los importes numéricos
+        nums = re.findall(r"\d+,\d+", linea)
 
+        # Validación de seguridad
+        if len(nums) < 3:
             descripcion = []
-        else:
-            descripcion.append(linea)
+            continue
+
+        # Precio unitario = primer importe después de unidades
+        precio_unit = float(nums[1].replace(",", "."))
+
+        # Subtotal sin IVA = penúltimo
+        subtotal = float(nums[-2].replace(",", "."))
+
+        # Total con IVA = último
+        total = float(nums[-1].replace(",", "."))
+
+        filas.append({
+            **datos_base,
+            "Producto": " ".join(descripcion),
+            "Cantidad": cantidad,
+            "Unidad": "unidades",
+            "Precio Unitario": precio_unit,
+            "Subtotal": subtotal,
+            "IVA %": 21,
+            "Total c/ IVA": total,
+        })
+
+        descripcion = []
 
     return filas
 
@@ -72,6 +87,7 @@ archivos = st.file_uploader(
 
 if archivos:
     todo = []
+
     for pdf in archivos:
         todo.extend(procesar_pdf(pdf))
 
