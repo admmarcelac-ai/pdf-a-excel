@@ -5,9 +5,9 @@ from PyPDF2 import PdfReader
 from io import BytesIO
 
 # =============================
-# CONFIG STREAMLIT
+# CONFIGURACIÓN STREAMLIT
 # =============================
-st.set_page_config(page_title="PDF Facturas a Excel", layout="wide")
+st.set_page_config(page_title="PDFs de Facturas a Excel", layout="wide")
 st.title("📄 PDFs de Facturas → Excel único")
 
 # =============================
@@ -17,22 +17,26 @@ def leer_pdf(archivo):
     reader = PdfReader(archivo)
     pagina = reader.pages[0]
     texto = pagina.extract_text()
-    return texto if texto else ""
+    if texto:
+        return texto
+    return ""
 
 # =============================
-# BUSCAR CON REGEX
+# FUNCIÓN REGEX AUXILIAR
 # =============================
 def buscar(patron, texto):
-    m = re.search(patron, texto, re.IGNORECASE | re.DOTALL)
-    return m.group(1).strip() if m else ""
+    resultado = re.search(patron, texto, re.IGNORECASE | re.DOTALL)
+    if resultado:
+        return resultado.group(1).strip()
+    return ""
 
 # =============================
-# PROCESAR PDF
+# PROCESAR UN PDF
 # =============================
 def procesar_pdf(pdf):
     texto = leer_pdf(pdf)
 
-    # DEBUG (ver texto real)
+    # Mostrar texto leído (debug)
     st.text_area("Texto detectado en el PDF", texto, height=300)
 
     datos_base = {
@@ -54,22 +58,29 @@ def procesar_pdf(pdf):
         re.DOTALL
     )
 
-    for p in productos:
+    for prod in productos:
         filas.append({
-            **datos_base,
-            "Producto": p[0].strip(),
-            "Cantidad": int(p[1]),
+            "Receptor": datos_base["Receptor"],
+            "CUIT Receptor": datos_base["CUIT Receptor"],
+            "Emisor": datos_base["Emisor"],
+            "CUIT Emisor": datos_base["CUIT Emisor"],
+            "Fecha": datos_base["Fecha"],
+            "Tipo": datos_base["Tipo"],
+            "Punto de Venta": datos_base["Punto de Venta"],
+            "Número": datos_base["Número"],
+            "Producto": prod[0].strip(),
+            "Cantidad": int(prod[1]),
             "Unidad": "unidades",
-            "Precio Unitario": float(p[2].replace(",", ".")),
-            "Subtotal": float(p[3].replace(",", ".")),
+            "Precio Unitario": float(prod[2].replace(",", ".")),
+            "Subtotal": float(prod[3].replace(",", ".")),
             "IVA %": 21,
-            "Total c/ IVA": float(p[3].replace(",", ".")),
+            "Total c/ IVA": float(prod[3].replace(",", ".")),
         })
 
     return filas
 
 # =============================
-# SUBIDA DE PDFS
+# SUBIDA DE ARCHIVOS
 # =============================
 archivos = st.file_uploader(
     "Subí uno o varios PDFs",
@@ -78,16 +89,16 @@ archivos = st.file_uploader(
 )
 
 # =============================
-# PROCESAR Y EXPORTAR
+# EJECUCIÓN PRINCIPAL
 # =============================
 if archivos:
-    todo = []
+    todas_las_filas = []
 
     for pdf in archivos:
-        todo.extend(procesar_pdf(pdf))
+        todas_las_filas.extend(procesar_pdf(pdf))
 
-    if todo:
-        df = pd.DataFrame(todo)
+    if todas_las_filas:
+        df = pd.DataFrame(todas_las_filas)
         st.subheader("📊 Datos extraídos")
         st.dataframe(df)
 
@@ -95,10 +106,10 @@ if archivos:
         df.to_excel(buffer, index=False, engine="openpyxl")
 
         st.download_button(
-            "⬇️ Descargar Excel",
-            buffer.getvalue(),
-            "facturas.xlsx",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            label="⬇️ Descargar Excel",
+            data=buffer.getvalue(),
+            file_name="facturas.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     else:
         st.warning("⚠️ No se detectaron productos en los PDFs.")
