@@ -12,7 +12,7 @@ if archivo:
     reader = PdfReader(archivo)
     texto = reader.pages[0].extract_text()
 
-    # ✅ recortar encabezado
+    # ✅ recorta encabezado
     if "Producto" in texto:
         texto = texto.split("Producto")[1]
 
@@ -25,10 +25,10 @@ if archivo:
 
     for linea in lineas:
 
-        # ✅ detectar solo líneas correctas tipo: X 48,00 unidades
-        if re.search(r"^X\s*\d+,\d+\s+unidades", linea):
+        # ✅ DETECTA LINEAS QUE CONTIENEN "unidades"
+        if "unidades" in linea:
 
-            # cantidad
+            # ✅ cantidad (busca siempre el X correcto)
             m = re.search(r"X\s*(\d+),", linea)
             cantidad = int(m.group(1)) if m else 0
 
@@ -56,6 +56,7 @@ if archivo:
         else:
             buffer_descripcion.append(linea)
 
+    # ✅ SALIDA
     if filas:
         df = pd.DataFrame(filas)
         st.dataframe(df)
@@ -71,3 +72,4 @@ if archivo:
         )
     else:
         st.warning("No se detectaron productos.")
+``
