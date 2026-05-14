@@ -4,16 +4,17 @@ import pandas as pd
 from io import BytesIO
 import re
 
-st.title("PDF a Excel - Facturas PAPUS")
+st.title("PDF a Excel - Facturas")
 
 archivo = st.file_uploader("Subí un PDF", type="pdf")
 
 if archivo:
     reader = PdfReader(archivo)
     texto = reader.pages[0].extract_text()
-    
-if "Codigo Producto" in texto:
-    texto = texto.split("Codigo Producto")[1]
+
+    # ✅ RECORTA SOLO EL DETALLE (evita encabezado)
+    if "Producto" in texto:
+        texto = texto.split("Producto")[1]
 
     st.text_area("Texto detectado", texto, height=300)
 
@@ -24,14 +25,14 @@ if "Codigo Producto" in texto:
 
     for linea in lineas:
 
-        # ✅ DETECTA SOLO LA LINEA CORRECTA (X 48,00 unidades)
+        # ✅ SOLO líneas tipo: X 48,00 unidades
         if re.search(r"^X\s*\d+,\d+\s+unidades", linea):
 
-            # 🔢 cantidad
+            # cantidad
             m = re.search(r"X\s*(\d+),", linea)
             cantidad = int(m.group(1)) if m else 0
 
-            # 💲 numeros
+            # números
             nums = re.findall(r"\d+,\d+", linea)
 
             if len(nums) >= 4:
@@ -56,12 +57,11 @@ if "Codigo Producto" in texto:
         else:
             buffer_descripcion.append(linea)
 
-    # ✅ MOSTRAR RESULTADO
+    # ✅ MOSTRAR
     if filas:
         df = pd.DataFrame(filas)
         st.dataframe(df)
 
-        # ✅ EXPORTAR A EXCEL
         buffer = BytesIO()
         df.to_excel(buffer, index=False, engine="openpyxl")
 
@@ -71,6 +71,6 @@ if "Codigo Producto" in texto:
             "facturas.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-
     else:
         st.warning("No se detectaron productos.")
+``
