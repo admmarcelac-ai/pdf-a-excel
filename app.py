@@ -12,8 +12,8 @@ if archivo:
     reader = PdfReader(archivo)
     texto = reader.pages[0].extract_text()
     
-if "Código Producto / Servicio" in texto:
-    texto = texto.split("Código Producto / Servicio")[1]
+if "Codigo Producto" in texto:
+    texto = texto.split("Codigo Producto")[1]
 
     st.text_area("Texto detectado", texto, height=300)
 
