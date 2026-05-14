@@ -67,4 +67,3 @@ if archivo:
             )
         else:
             st.warning("No se detectaron productos.")
-``
