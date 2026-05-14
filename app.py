@@ -12,58 +12,63 @@ if archivo:
     reader = PdfReader(archivo)
     texto = reader.pages[0].extract_text()
 
-    if texto:
-        if "Producto" in texto:
-            texto = texto.split("Producto", 1)[1]
+    # ✅ cortar encabezado correctamente
+    if "Código Producto" in texto:
+        texto = texto.split("Código Producto", 1)[1]
 
-        st.text_area("Texto", texto, height=300)
+    st.text_area("Texto", texto, height=300)
 
-        lineas = texto.split("\n")
+    lineas = [l.strip() for l in texto.split("\n") if l.strip()]
 
-        filas = []
-        descripcion = []
+    filas = []
+    descripcion = []
 
-        for linea in lineas:
-            linea = linea.strip()
+    for linea in lineas:
 
-            if "unidades" in linea:
-                match = re.search(r"X\s*(\d+),", linea)
-                cantidad = int(match.group(1)) if match else 0
+        # ✅ SOLO líneas válidas (las que tienen cantidad real)
+        if re.search(r"X\s*\d+,\d+\s+unidades", linea):
 
-                numeros = re.findall(r"\d+,\d+", linea)
+            # ✅ cantidad correcta (48, 36, etc.)
+            match = re.search(r"X\s*(\d+),", linea)
+            cantidad = int(match.group(1)) if match else 0
 
-                if len(numeros) >= 4:
-                    precio = float(numeros[1].replace(",", "."))
-                    subtotal = float(numeros[3].replace(",", "."))
-                    total = float(numeros[-1].replace(",", "."))
-                else:
-                    precio = subtotal = total = 0
+            numeros = re.findall(r"\d+,\d+", linea)
 
-                producto = " ".join(descripcion)
-
-                filas.append({
-                    "Producto": producto,
-                    "Cantidad": cantidad,
-                    "Precio Unitario": precio,
-                    "Subtotal": subtotal,
-                    "Total c/ IVA": total
-                })
-
-                descripcion = []
+            if len(numeros) >= 4:
+                precio = float(numeros[1].replace(",", "."))
+                subtotal = float(numeros[3].replace(",", "."))
+                total = float(numeros[-1].replace(",", "."))
             else:
+                precio = subtotal = total = 0
+
+            producto = " ".join(descripcion).strip()
+
+            filas.append({
+                "Producto": producto,
+                "Cantidad": cantidad,
+                "Precio Unitario": precio,
+                "Subtotal": subtotal,
+                "Total c/ IVA": total
+            })
+
+            descripcion = []
+
+        else:
+            # ✅ evitar meter encabezado
+            if "Subtotal" not in linea and "Código" not in linea:
                 descripcion.append(linea)
 
-        if filas:
-            df = pd.DataFrame(filas)
-            st.dataframe(df)
+    if filas:
+        df = pd.DataFrame(filas)
+        st.dataframe(df)
 
-            buffer = BytesIO()
-            df.to_excel(buffer, index=False, engine="openpyxl")
+        buffer = BytesIO()
+        df.to_excel(buffer, index=False, engine="openpyxl")
 
-            st.download_button(
-                "Descargar Excel",
-                buffer.getvalue(),
-                "facturas.xlsx"
-            )
-        else:
-            st.warning("No se detectaron productos.")
+        st.download_button(
+            "Descargar Excel",
+            buffer.getvalue(),
+            "facturas.xlsx"
+        )
+    else:
+        st.warning("No se detectaron productos.")
