@@ -12,63 +12,77 @@ if archivo:
     reader = PdfReader(archivo)
     texto = reader.pages[0].extract_text()
 
-    # ✅ cortar encabezado correctamente
-    if "Código Producto" in texto:
-        texto = texto.split("Código Producto", 1)[1]
+    if texto:
+        # ✅ cortar encabezado
+        if "Código Producto" in texto:
+            texto = texto.split("Código Producto", 1)[1]
+        elif "Producto" in texto:
+            texto = texto.split("Producto", 1)[1]
 
-    st.text_area("Texto", texto, height=300)
+        st.text_area("Texto", texto, height=300)
 
-    lineas = [l.strip() for l in texto.split("\n") if l.strip()]
+        lineas = [l.strip() for l in texto.split("\n") if l.strip()]
 
-    filas = []
-    descripcion = []
+        filas = []
+        descripcion = []
 
-    for linea in lineas:
+        for linea in lineas:
 
-        # ✅ SOLO líneas válidas (las que tienen cantidad real)
-        if re.search(r"X\s*\d+,\d+\s+unidades", linea):
+            # ✅ detectar líneas de producto reales
+            if "unidades" in linea:
 
-            # ✅ cantidad correcta (48, 36, etc.)
-            match = re.search(r"X\s*(\d+),", linea)
-            cantidad = int(match.group(1)) if match else 0
+                # ✅ cantidad corregida (148 → 48)
+                match = re.search(r"X\s*(\d+),", linea)
 
-            numeros = re.findall(r"\d+,\d+", linea)
+                if match:
+                    numero = match.group(1)
+                    cantidad = int(numero[-2:])  # ← CLAVE
+                else:
+                    cantidad = 0
 
-            if len(numeros) >= 4:
-                precio = float(numeros[1].replace(",", "."))
-                subtotal = float(numeros[3].replace(",", "."))
-                total = float(numeros[-1].replace(",", "."))
+                # ✅ extraer números
+                numeros = re.findall(r"\d+,\d+", linea)
+
+                if len(numeros) >= 4:
+                    precio = float(numeros[1].replace(",", "."))
+                    subtotal = float(numeros[3].replace(",", "."))
+                    total = float(numeros[-1].replace(",", "."))
+                else:
+                    precio = subtotal = total = 0
+
+                producto = " ".join(descripcion).strip()
+
+                # ✅ limpiar encabezado basura
+                if "Subtotal" in producto:
+                    producto = producto.split("Subtotal")[-1]
+
+                filas.append({
+                    "Producto": producto,
+                    "Cantidad": cantidad,
+                    "Precio Unitario": precio,
+                    "Subtotal": subtotal,
+                    "Total c/ IVA": total
+                })
+
+                descripcion = []
+
             else:
-                precio = subtotal = total = 0
+                # ✅ evitar encabezado
+                if "Código" not in linea and "Subtotal" not in linea:
+                    descripcion.append(linea)
 
-            producto = " ".join(descripcion).strip()
+        # ✅ salida
+        if filas:
+            df = pd.DataFrame(filas)
+            st.dataframe(df)
 
-            filas.append({
-                "Producto": producto,
-                "Cantidad": cantidad,
-                "Precio Unitario": precio,
-                "Subtotal": subtotal,
-                "Total c/ IVA": total
-            })
+            buffer = BytesIO()
+            df.to_excel(buffer, index=False, engine="openpyxl")
 
-            descripcion = []
-
+            st.download_button(
+                "Descargar Excel",
+                buffer.getvalue(),
+                "facturas.xlsx"
+            )
         else:
-            # ✅ evitar meter encabezado
-            if "Subtotal" not in linea and "Código" not in linea:
-                descripcion.append(linea)
-
-    if filas:
-        df = pd.DataFrame(filas)
-        st.dataframe(df)
-
-        buffer = BytesIO()
-        df.to_excel(buffer, index=False, engine="openpyxl")
-
-        st.download_button(
-            "Descargar Excel",
-            buffer.getvalue(),
-            "facturas.xlsx"
-        )
-    else:
-        st.warning("No se detectaron productos.")
+            st.warning("No se detectaron productos.")
